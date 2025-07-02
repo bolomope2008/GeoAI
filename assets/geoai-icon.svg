@@ -1,0 +1,50 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="512" cy="512" r="480" fill="#1e40af" opacity="0.1"/>
+  
+  <!-- Outer Ring (Geology/Earth representation) -->
+  <circle cx="512" cy="512" r="460" fill="none" stroke="#1e40af" stroke-width="40"/>
+  
+  <!-- Mountain/Geological Layers -->
+  <g transform="translate(512, 512)">
+    <!-- Bottom layer -->
+    <path d="M -300 100 L -150 -50 L 0 50 L 150 -100 L 300 100 L 300 200 L -300 200 Z" 
+          fill="#8b5cf6" opacity="0.3" transform="translate(0, 50)"/>
+    
+    <!-- Middle layer -->
+    <path d="M -250 50 L -100 -100 L 50 0 L 200 -150 L 250 50 L 250 150 L -250 150 Z" 
+          fill="#8b5cf6" opacity="0.5" transform="translate(0, 50)"/>
+    
+    <!-- Top layer -->
+    <path d="M -200 0 L -50 -150 L 100 -50 L 200 -100 L 200 100 L -200 100 Z" 
+          fill="#8b5cf6" opacity="0.7" transform="translate(0, 50)"/>
+  </g>
+  
+  <!-- AI Brain Network (centered) -->
+  <g transform="translate(512, 420)">
+    <!-- Central node -->
+    <circle cx="0" cy="0" r="60" fill="#1e40af"/>
+    
+    <!-- Neural connections -->
+    <line x1="0" y1="0" x2="-120" y2="-80" stroke="#1e40af" stroke-width="8" opacity="0.5"/>
+    <line x1="0" y1="0" x2="120" y2="-80" stroke="#1e40af" stroke-width="8" opacity="0.5"/>
+    <line x1="0" y1="0" x2="-150" y2="40" stroke="#1e40af" stroke-width="8" opacity="0.5"/>
+    <line x1="0" y1="0" x2="150" y2="40" stroke="#1e40af" stroke-width="8" opacity="0.5"/>
+    <line x1="0" y1="0" x2="0" y2="-140" stroke="#1e40af" stroke-width="8" opacity="0.5"/>
+    
+    <!-- Outer nodes -->
+    <circle cx="-120" cy="-80" r="30" fill="#3b82f6"/>
+    <circle cx="120" cy="-80" r="30" fill="#3b82f6"/>
+    <circle cx="-150" cy="40" r="30" fill="#3b82f6"/>
+    <circle cx="150" cy="40" r="30" fill="#3b82f6"/>
+    <circle cx="0" cy="-140" r="30" fill="#3b82f6"/>
+    
+    <!-- AI symbol in center -->
+    <text x="0" y="15" font-family="Arial, sans-serif" font-size="80" font-weight="bold" 
+          text-anchor="middle" fill="white">AI</text>
+  </g>
+  
+  <!-- "GEO" text at bottom -->
+  <text x="512" y="780" font-family="Arial, sans-serif" font-size="120" font-weight="bold" 
+        text-anchor="middle" fill="#1e40af">GEO</text>
+</svg>

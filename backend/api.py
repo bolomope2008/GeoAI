@@ -63,6 +63,10 @@ from datetime import datetime
 # Import local modules
 from configuration import *
 from update_database import process_document, chunk_text
+from settings_manager import SettingsManager
+
+# Initialize settings manager
+settings_manager = SettingsManager()
 
 # Initialize FastAPI app
 app = FastAPI(title="RAG Chatbot API")
@@ -195,6 +199,9 @@ embeddings = None
 llm = None
 text_splitter = None
 
+# Runtime configuration variables (loaded from settings manager)
+runtime_config = settings_manager.get_all_settings()
+
 class ChatMessage(BaseModel):
     """
     Pydantic model for incoming chat messages.
@@ -283,30 +290,33 @@ def initialize_clients():
     Raises:
         Exception: If unable to connect to Ollama or initialize components
     """
-    global embeddings, llm, text_splitter
+    global embeddings, llm, text_splitter, runtime_config
     logger.info("Initializing clients...")
     try:
-        logger.info(f"Setting up embedding model: {configuration.EMBEDDING_MODEL}")
+        # Reload runtime config from settings manager
+        runtime_config = settings_manager.get_all_settings()
+        
+        logger.info(f"Setting up embedding model: {runtime_config['embedding_model']}")
         embeddings = OllamaEmbeddings(
-            base_url=configuration.OLLAMA_BASE_URL,
-            model=configuration.EMBEDDING_MODEL
+            base_url=runtime_config['ollama_base_url'],
+            model=runtime_config['embedding_model']
         )
         
-        logger.info(f"Setting up LLM model: {configuration.LLM_MODEL}")
+        logger.info(f"Setting up LLM model: {runtime_config['llm_model']}")
         llm = OllamaLLM(
-            base_url=configuration.OLLAMA_BASE_URL,
-            model=configuration.LLM_MODEL
+            base_url=runtime_config['ollama_base_url'],
+            model=runtime_config['llm_model']
         )
         
-        logger.info(f"Setting up text splitter (chunk_size: {configuration.CHUNK_SIZE}, overlap: {configuration.CHUNK_OVERLAP})")
+        logger.info(f"Setting up text splitter (chunk_size: {runtime_config['chunk_size']}, overlap: {runtime_config['chunk_overlap']})")
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=configuration.CHUNK_SIZE,
-            chunk_overlap=configuration.CHUNK_OVERLAP
+            chunk_size=runtime_config['chunk_size'],
+            chunk_overlap=runtime_config['chunk_overlap']
         )
         
         # Test basic connectivity
         logger.info("Testing Ollama connectivity...")
-        response = requests.get(f"{configuration.OLLAMA_BASE_URL}/api/version")
+        response = requests.get(f"{runtime_config['ollama_base_url']}/api/version")
         if response.status_code != 200:
             raise Exception("Failed to connect to Ollama")
         
@@ -326,76 +336,50 @@ logger.info("Application initialization completed successfully")
 @app.get("/settings")
 async def get_settings():
     """Get current settings"""
-    current_settings = {
-        "ollama_base_url": configuration.OLLAMA_BASE_URL,
-        "llm_model": configuration.LLM_MODEL,
-        "embedding_model": configuration.EMBEDDING_MODEL,
-        "chunk_size": configuration.CHUNK_SIZE,
-        "chunk_overlap": configuration.CHUNK_OVERLAP,
-        "top_k_chunks": configuration.TOP_K_CHUNKS
-    }
+    global runtime_config
+    runtime_config = settings_manager.get_all_settings()
+    
     logger.info("\n=== Current Settings ===")
-    logger.info(f"Ollama Base URL: {current_settings['ollama_base_url']}")
-    logger.info(f"LLM Model: {current_settings['llm_model']}")
-    logger.info(f"Embedding Model: {current_settings['embedding_model']}")
-    logger.info(f"Chunk Size: {current_settings['chunk_size']}")
-    logger.info(f"Chunk Overlap: {current_settings['chunk_overlap']}")
-    logger.info(f"Top K Chunks: {current_settings['top_k_chunks']}")
-    return current_settings
+    logger.info(f"Ollama Base URL: {runtime_config['ollama_base_url']}")
+    logger.info(f"LLM Model: {runtime_config['llm_model']}")
+    logger.info(f"Embedding Model: {runtime_config['embedding_model']}")
+    logger.info(f"Chunk Size: {runtime_config['chunk_size']}")
+    logger.info(f"Chunk Overlap: {runtime_config['chunk_overlap']}")
+    logger.info(f"Top K Chunks: {runtime_config['top_k_chunks']}")
+    return runtime_config
 
 @app.post("/settings")
 async def update_settings(settings: Settings):
-    """Update settings dynamically and persist to configuration file"""
+    """Update settings dynamically and persist to JSON file"""
     try:
         logger.info("\n=== Updating Settings ===")
         
-        # Update runtime settings
+        # Build settings dictionary from provided values
+        new_settings = {}
         if settings.ollama_base_url is not None:
-            configuration.OLLAMA_BASE_URL = settings.ollama_base_url
+            new_settings['ollama_base_url'] = settings.ollama_base_url
             logger.info(f"Ollama Base URL -> {settings.ollama_base_url}")
         if settings.llm_model is not None:
-            configuration.LLM_MODEL = settings.llm_model
+            new_settings['llm_model'] = settings.llm_model
             logger.info(f"LLM Model -> {settings.llm_model}")
         if settings.embedding_model is not None:
-            configuration.EMBEDDING_MODEL = settings.embedding_model
+            new_settings['embedding_model'] = settings.embedding_model
             logger.info(f"Embedding Model -> {settings.embedding_model}")
         if settings.chunk_size is not None:
-            configuration.CHUNK_SIZE = settings.chunk_size
+            new_settings['chunk_size'] = settings.chunk_size
             logger.info(f"Chunk Size -> {settings.chunk_size}")
         if settings.chunk_overlap is not None:
-            configuration.CHUNK_OVERLAP = settings.chunk_overlap
+            new_settings['chunk_overlap'] = settings.chunk_overlap
             logger.info(f"Chunk Overlap -> {settings.chunk_overlap}")
         if settings.top_k_chunks is not None:
-            configuration.TOP_K_CHUNKS = settings.top_k_chunks
+            new_settings['top_k_chunks'] = settings.top_k_chunks
             logger.info(f"Top K Chunks -> {settings.top_k_chunks}")
 
-        # Update configuration file
-        config_path = os.path.join(BASE_DIR, "configuration.py")
-        with open(config_path, "r") as f:
-            lines = f.readlines()
+        # Save settings using settings manager
+        if not settings_manager.save_settings(new_settings):
+            raise HTTPException(status_code=500, detail="Failed to save settings")
 
-        # Update values while preserving comments and structure
-        new_lines = []
-        for line in lines:
-            if line.startswith("OLLAMA_BASE_URL") and settings.ollama_base_url is not None:
-                new_lines.append(f'OLLAMA_BASE_URL = "{settings.ollama_base_url}"\n')
-            elif line.startswith("LLM_MODEL") and settings.llm_model is not None:
-                new_lines.append(f'LLM_MODEL = "{settings.llm_model}"\n')
-            elif line.startswith("EMBEDDING_MODEL") and settings.embedding_model is not None:
-                new_lines.append(f'EMBEDDING_MODEL = "{settings.embedding_model}"\n')
-            elif line.startswith("CHUNK_SIZE") and settings.chunk_size is not None:
-                new_lines.append(f'CHUNK_SIZE = {settings.chunk_size}\n')
-            elif line.startswith("CHUNK_OVERLAP") and settings.chunk_overlap is not None:
-                new_lines.append(f'CHUNK_OVERLAP = {settings.chunk_overlap}\n')
-            elif line.startswith("TOP_K_CHUNKS") and settings.top_k_chunks is not None:
-                new_lines.append(f'TOP_K_CHUNKS = {settings.top_k_chunks}\n')
-            else:
-                new_lines.append(line)
-
-        with open(config_path, "w") as f:
-            f.writelines(new_lines)
-
-        logger.info("Settings saved to configuration file")
+        logger.info("Settings saved to JSON file")
 
         # Reinitialize clients with new settings
         if not initialize_clients():
@@ -557,7 +541,7 @@ async def chat_stream(message: ChatMessage):
                     # Search for relevant documents
                     results = collection.query(
                         query_embeddings=[query_embedding],
-                        n_results=TOP_K_CHUNKS
+                        n_results=runtime_config['top_k_chunks']
                     )
                     
                     if results['documents'][0]:

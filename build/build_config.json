@@ -1,0 +1,128 @@
+{
+  "name": "GeoAI Desktop",
+  "version": "1.0.0",
+  "description": "Self-contained desktop application for geological research using RAG technology",
+  
+  "platforms": {
+    "macOS": {
+      "enabled": true,
+      "script": "build_complete_app.sh",
+      "outputs": [
+        "electron/dist/GeoAI Desktop-1.0.0-arm64.dmg",
+        "electron/dist/GeoAI Desktop-1.0.0.dmg"
+      ],
+      "requirements": ["Node.js 18+", "Python 3.8+", "Xcode Command Line Tools"],
+      "installer_size_mb": 275
+    },
+    
+    "Windows": {
+      "enabled": true,
+      "scripts": {
+        "batch": "build_windows_app.bat",
+        "powershell": "build_windows_app.ps1"
+      },
+      "outputs": [
+        "electron/dist/GeoAI Desktop Setup 1.0.0.exe"
+      ],
+      "requirements": ["Node.js 18+", "Python 3.8+"],
+      "installer_size_mb": 280
+    },
+    
+    "Linux": {
+      "enabled": false,
+      "script": "build_linux_app.sh",
+      "outputs": [
+        "electron/dist/GeoAI Desktop-1.0.0.AppImage"
+      ],
+      "requirements": ["Node.js 18+", "Python 3.8+"],
+      "installer_size_mb": 290,
+      "note": "Not yet implemented"
+    }
+  },
+  
+  "build_steps": [
+    {
+      "name": "Frontend Build",
+      "description": "Build Next.js frontend to static files",
+      "command": "npm run build",
+      "directory": "frontend/my-app",
+      "estimated_time_seconds": 30
+    },
+    {
+      "name": "Python Bundle",
+      "description": "Create self-contained Python environment",
+      "command": "python create_bundle.py",
+      "directory": "backend",
+      "estimated_time_seconds": 180
+    },
+    {
+      "name": "Electron Package",
+      "description": "Package Electron application",
+      "command": "npm run dist",
+      "directory": "electron",
+      "estimated_time_seconds": 60
+    }
+  ],
+  
+  "dependencies": {
+    "global": {
+      "Node.js": {
+        "version": "18+",
+        "check_command": "node --version",
+        "install_url": "https://nodejs.org"
+      },
+      "Python": {
+        "version": "3.8+",
+        "check_command": "python --version",
+        "install_url": "https://python.org"
+      }
+    },
+    "macOS": {
+      "Xcode Command Line Tools": {
+        "check_command": "xcode-select --version",
+        "install_command": "xcode-select --install"
+      }
+    }
+  },
+  
+  "output_structure": {
+    "electron/dist/": {
+      "description": "Built applications and installers",
+      "files": {
+        "*.dmg": "macOS disk images",
+        "*.exe": "Windows installers",
+        "*.AppImage": "Linux AppImages",
+        "mac/": "Unpacked macOS app",
+        "win-unpacked/": "Unpacked Windows app",
+        "linux-unpacked/": "Unpacked Linux app"
+      }
+    }
+  },
+  
+  "environment_variables": {
+    "NODE_ENV": "production",
+    "ELECTRON_BUILDER_CACHE": "electron/dist/.cache",
+    "PYTHONUNBUFFERED": "1"
+  },
+  
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "Python not found",
+        "solution": "Ensure Python is installed and in PATH"
+      },
+      {
+        "issue": "npm install fails",
+        "solution": "Clear node_modules and package-lock.json, then retry"
+      },
+      {
+        "issue": "Electron build fails",
+        "solution": "Check disk space and clear electron builder cache"
+      },
+      {
+        "issue": "Python bundle creation fails",
+        "solution": "Check internet connection and Python package installation"
+      }
+    ]
+  }
+}
