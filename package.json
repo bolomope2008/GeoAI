@@ -1,0 +1,83 @@
+{
+  "name": "geoai-desktop",
+  "version": "1.0.0",
+  "description": "GeoAI Desktop Application - RAG Chatbot with Local LLM Support",
+  "main": "electron/main.js",
+  "homepage": "./",
+  "scripts": {
+    "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload",
+    "dev:frontend": "cd frontend/my-app && npm run dev",
+    "build": "cd frontend/my-app && npm run build",
+    "start": "cd frontend/my-app && npm start",
+    "check:backend": "cd backend && python -c \"import api; print('✅ Backend dependencies OK')\"",
+    "check:frontend": "cd frontend/my-app && npm list --depth=0",
+    "electron": "electron .",
+    "electron:dev": "concurrently \"npm run build:frontend\" \"electron .\"",
+    "build:frontend": "cd frontend/my-app && npm run build",
+    "build:backend": "cd backend && pyinstaller --onefile --name geoai-backend api.py",
+    "build:app": "npm run build:frontend && npm run build:backend && electron-builder",
+    "dist": "npm run build:app",
+    "pack": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac",
+    "dist:dmg": "electron-builder --mac --target=dmg"
+  },
+  "dependencies": {
+    "@radix-ui/react-toast": "^1.2.5",
+    "class-variance-authority": "^0.7.1",
+    "serve-handler": "^6.1.6"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.geoai.desktop",
+    "productName": "GeoAI",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "backend/dist/**/*",
+      "!**/node_modules/**/test/**/*",
+      "!**/node_modules/**/*.d.ts",
+      "!**/node_modules/**/*.map",
+      "!**/*.ts"
+    ],
+    "asarUnpack": [
+      "frontend/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist/",
+        "to": "backend/",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "frontend/my-app/out/",
+        "to": "frontend/my-app/out/",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "default",
+          "arch": "arm64"
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns"
+    },
+    "dmg": {
+      "title": "GeoAI Desktop",
+      "artifactName": "GeoAI-${version}.dmg"
+    }
+  }
+}
