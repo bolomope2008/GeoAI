@@ -21,17 +21,6 @@ function Write-Log {
     )
 }
 
-# Function to check if command exists
-function Test-Command {
-    param([string]$Command)
-    try {
-        Get-Command $Command -ErrorAction Stop | Out-Null
-        return $true
-    } catch {
-        return $false
-    }
-}
-
 # Start build process
 Write-Log "Starting GeoAI Desktop Windows Build Process" "SUCCESS"
 Write-Log "=============================================" "SUCCESS"
@@ -42,21 +31,6 @@ Set-Location $PROJECT_ROOT
 
 # Check prerequisites
 Write-Log "Checking prerequisites..."
-
-if (-not (Test-Command "node")) {
-    Write-Log "Node.js not found. Please install Node.js 18+ from https://nodejs.org" "ERROR"
-    exit 1
-}
-
-if (-not (Test-Command "npm")) {
-    Write-Log "npm not found. Please install npm" "ERROR"
-    exit 1
-}
-
-if (-not (Test-Command "python")) {
-    Write-Log "Python not found. Please install Python 3.8+ from https://python.org" "ERROR"
-    exit 1
-}
 
 # Check Python version
 $pythonVersion = python --version 2>&1
@@ -69,14 +43,14 @@ if (-not $SkipFrontend) {
     Set-Location "$PROJECT_ROOT\frontend\my-app"
     
     Write-Log "Installing frontend dependencies..."
-    & npm install
+    npm install
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Frontend npm install failed" "ERROR"
         exit 1
     }
     
     Write-Log "Building frontend..."
-    & npm run build
+    npm run build
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Frontend build failed" "ERROR"
         exit 1
@@ -125,7 +99,7 @@ Write-Log "Step 4: Installing Electron dependencies..." "SUCCESS"
 
 Set-Location "$PROJECT_ROOT\electron"
 
-& npm install
+npm install
 if ($LASTEXITCODE -ne 0) {
     Write-Log "Electron npm install failed" "ERROR"
     exit 1
@@ -134,7 +108,7 @@ if ($LASTEXITCODE -ne 0) {
 # Step 5: Build Electron app for Windows
 Write-Log "Step 5: Building Electron app for Windows..." "SUCCESS"
 
-& npm run dist:win
+npm run dist:win
 if ($LASTEXITCODE -ne 0) {
     Write-Log "Electron build failed" "ERROR"
     exit 1
@@ -145,7 +119,7 @@ Set-Location $PROJECT_ROOT
 # Build completed successfully
 Write-Log ""
 Write-Log "=============================================" "SUCCESS"
-Write-Log "✅ Windows Build Complete!" "SUCCESS"
+Write-Log "Windows Build Complete!" "SUCCESS"
 Write-Log "=============================================" "SUCCESS"
 Write-Log ""
 

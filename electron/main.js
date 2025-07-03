@@ -70,7 +70,8 @@ async function startBackend() {
       CHROMA_DB_DIR: userPaths.chroma_db,
       CONFIG_DIR: userPaths.config,
       BACKEND_PORT: backendPort.toString(),
-      PYTHONUNBUFFERED: '1'
+      PYTHONUNBUFFERED: '1',
+      PYTHONNOUSERSITE: '1'
     };
     
     let backendCommand;

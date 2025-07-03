@@ -17,10 +17,10 @@ def main():
     main_build_script = project_root / "build" / "build_app.py"
     
     if not main_build_script.exists():
-        print("❌ Error: Main build script not found at build/build_app.py")
+        print("Error: Main build script not found at build/build_app.py")
         return 1
     
-    print("🚀 GeoAI Desktop Build Launcher")
+    print("GeoAI Desktop Build Launcher")
     print("Delegating to main build system...")
     print()
     
@@ -29,10 +29,10 @@ def main():
         result = subprocess.run([sys.executable, str(main_build_script)] + sys.argv[1:])
         return result.returncode
     except KeyboardInterrupt:
-        print("\n🛑 Build cancelled by user")
+        print("\nBuild cancelled by user")
         return 1
     except Exception as e:
-        print(f"❌ Error launching build script: {e}")
+        print(f"Error launching build script: {e}")
         return 1
 
 if __name__ == "__main__":
