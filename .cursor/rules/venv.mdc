@@ -1,8 +1,0 @@
----
-description: Terminal Environment
-globs: 
----
-
-# Always ensure we are in the chatbot-rag virtual enviroment
-# Virtual environment is handled using conda
-# The backend is in the backend folder
