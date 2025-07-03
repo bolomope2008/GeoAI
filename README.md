@@ -37,18 +37,18 @@ Transform any document into an interactive AI assistant. Upload your files and s
 ## 📥 **Download & Install**
 
 ### macOS
-- **Apple Silicon (M1/M2/M3)**: [Download ARM64 DMG](link-to-arm64-dmg)
-- **Intel Macs**: [Download Intel DMG](link-to-intel-dmg)
+- **Apple Silicon (M1/M2/M3)**: [Download ARM64 DMG](https://github.com/bolomope2008/GeoAI/releases/latest)
+- **Intel Macs**: [Download Intel DMG](https://github.com/bolomope2008/GeoAI/releases/latest)
 
 ### Windows  
-- **Windows 10/11**: [Download Windows Installer](link-to-windows-exe)
+- **Windows 10/11**: [Download Windows Installer](https://github.com/bolomope2008/GeoAI/releases/latest)
 
 ### Installation
 1. Download the appropriate installer for your system
 2. Install the application (drag to Applications on macOS, run installer on Windows)
 3. Install [Ollama](https://ollama.ai) for AI functionality
 4. Launch GeoAI Desktop and start uploading your documents!
-
+![Application](Screenshot%202025-07-03%20at%2021.53.24.png)
 ## 🚀 **How It Works**
 
 1. **📂 Upload Documents** - Drag and drop your files into the app
@@ -92,13 +92,8 @@ Unlike cloud-based AI tools, GeoAI Desktop keeps your sensitive documents comple
 
 ### **AI Requirements**  
 - **[Ollama](https://ollama.ai)** - Free, local AI runtime
-- **LLM Model** - Download any model (llama2, codellama, etc.)
 - **First-time Setup**: ~10-15 minutes to download AI model
 
-### **Platform Support**
-- **macOS**: 10.15+ (Apple Silicon & Intel)
-- **Windows**: 10/11 (64-bit)
-- **Coming Soon**: Linux support
 
 ## 🔧 **Setup Guide**
 
@@ -144,7 +139,7 @@ Unlike cloud-based AI tools, GeoAI Desktop keeps your sensitive documents comple
 - **📖 Documentation**: [Complete guides and tutorials](docs/)
 - **🐛 Issues**: [Report bugs or request features](../../issues)
 - **💬 Discussions**: [Community support and ideas](../../discussions)
-- **📧 Contact**: [Direct support](mailto:support@example.com)
+- **📧 Contact**: [Direct support](mailto:bolomope2008@gmail.com)
 
 ## 📄 **License**
 
