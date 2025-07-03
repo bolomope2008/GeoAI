@@ -187,12 +187,25 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
-# Initialize ChromaDB with custom settings to avoid ONNX dependency
-import chromadb.config
-chroma_client = chromadb.PersistentClient(
-    path=str(CHROMA_DB_DIR),
-    settings=chromadb.config.Settings(allow_reset=True)
-)
+def create_chroma_client():
+    """
+    Create a ChromaDB client with standardized settings.
+    
+    Returns:
+        chromadb.PersistentClient: Configured ChromaDB client
+    """
+    import chromadb.config
+    return chromadb.PersistentClient(
+        path=str(CHROMA_DB_DIR),
+        settings=chromadb.config.Settings(
+            allow_reset=True,
+            anonymized_telemetry=False,
+            is_persistent=True
+        )
+    )
+
+# Initialize ChromaDB with standardized settings
+chroma_client = create_chroma_client()
 
 # Global variables for clients
 embeddings = None
@@ -375,6 +388,35 @@ async def update_settings(settings: Settings):
             new_settings['top_k_chunks'] = settings.top_k_chunks
             logger.info(f"Top K Chunks -> {settings.top_k_chunks}")
 
+        # Validate models exist before saving (if models were changed)
+        if 'llm_model' in new_settings or 'embedding_model' in new_settings:
+            try:
+                # Test connection to Ollama
+                test_url = new_settings.get('ollama_base_url', runtime_config['ollama_base_url'])
+                models_url = f"{test_url}/api/tags"
+                
+                import requests
+                response = requests.get(models_url, timeout=5)
+                if response.status_code == 200:
+                    available_models = [model['name'] for model in response.json().get('models', [])]
+                    
+                    # Check if specified models exist
+                    if 'llm_model' in new_settings and new_settings['llm_model'] not in available_models:
+                        raise HTTPException(
+                            status_code=404, 
+                            detail=f"LLM model '{new_settings['llm_model']}' not found. Available models: {', '.join(available_models)}"
+                        )
+                    
+                    if 'embedding_model' in new_settings and new_settings['embedding_model'] not in available_models:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Embedding model '{new_settings['embedding_model']}' not found. Available models: {', '.join(available_models)}"
+                        )
+                else:
+                    logger.warning("Could not validate models - Ollama may not be running")
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Could not connect to Ollama to validate models: {e}")
+
         # Save settings using settings manager
         if not settings_manager.save_settings(new_settings):
             raise HTTPException(status_code=500, detail="Failed to save settings")
@@ -462,7 +504,7 @@ async def chat(message: ChatMessage):
             # Search for relevant document chunks
             results = collection.query(
                 query_embeddings=[query_embedding],
-                n_results=configuration.TOP_K_CHUNKS
+                n_results=runtime_config['top_k_chunks']
             )
             
             if not results['documents'][0]:
@@ -535,7 +577,7 @@ async def chat_stream(message: ChatMessage):
                 
                 if has_documents and collection:
                     # Database has documents - proceed with normal RAG flow
-                    print(f"Generating embeddings using {configuration.EMBEDDING_MODEL}")
+                    print(f"Generating embeddings using {runtime_config['embedding_model']}")
                     query_embedding = embeddings.embed_query(message.message)
                     
                     # Search for relevant documents
@@ -572,9 +614,9 @@ async def chat_stream(message: ChatMessage):
                     yield f"data: {json.dumps({'type': 'sources', 'sources': []})}\n\n"
                 
                 # Generate response using Ollama
-                client = AsyncClient(host=configuration.OLLAMA_BASE_URL.replace('http://', ''))
+                client = AsyncClient(host=runtime_config['ollama_base_url'].replace('http://', ''))
                 async for chunk in await client.generate(
-                    model=configuration.LLM_MODEL,
+                    model=runtime_config['llm_model'],
                     prompt=prompt,
                     stream=True
                 ):
@@ -626,6 +668,7 @@ async def upload_file(file: UploadFile = File(...)):
     Raises:
         HTTPException: If file processing fails or database operation fails
     """
+    global chroma_client
     try:
         logger.info(f"Starting upload process for file: {file.filename}")
         
@@ -635,15 +678,24 @@ async def upload_file(file: UploadFile = File(...)):
             if not initialize_clients():
                 raise HTTPException(status_code=500, detail="Failed to initialize models")
         
+        # Always create a fresh ChromaDB client for upload operations to avoid readonly database issues
+        logger.info("Creating fresh ChromaDB client for upload...")
+        upload_client = create_chroma_client()
+        
         # Create knowledge base directory if it doesn't exist
         os.makedirs(KNOWLEDGE_BASE_DIR, exist_ok=True)
         
         # Save the uploaded file
         file_path = os.path.join(KNOWLEDGE_BASE_DIR, file.filename)
+        logger.info(f"Saving file to: {file_path}")
+        logger.info(f"Knowledge base directory: {KNOWLEDGE_BASE_DIR}")
+        
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
         logger.info(f"File saved to: {file_path}")
+        logger.info(f"File exists after save: {os.path.exists(file_path)}")
+        logger.info(f"File size: {os.path.getsize(file_path) if os.path.exists(file_path) else 'N/A'}")
         
         # Process the document
         logger.info(f"Processing document: {file.filename}")
@@ -653,16 +705,36 @@ async def upload_file(file: UploadFile = File(...)):
         
         logger.info(f"Extracted {len(text)} characters from {file.filename}")
         
-        # Get or create collection
-        try:
-            collection = chroma_client.get_collection(name=COLLECTION_NAME)
-            logger.info(f"Using existing collection: {COLLECTION_NAME}")
-        except (ValueError, chromadb.errors.InvalidCollectionException):
-            collection = chroma_client.create_collection(
-                name=COLLECTION_NAME,
-                metadata={"hnsw:space": "cosine"}
-            )
-            logger.info(f"Created new collection: {COLLECTION_NAME}")
+        # Get or create collection with retry logic using fresh client
+        collection = None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                collection = upload_client.get_collection(name=COLLECTION_NAME)
+                logger.info(f"Using existing collection: {COLLECTION_NAME}")
+                break
+            except (ValueError, chromadb.errors.InvalidCollectionException):
+                try:
+                    collection = upload_client.create_collection(
+                        name=COLLECTION_NAME,
+                        metadata={"hnsw:space": "cosine"}
+                    )
+                    logger.info(f"Created new collection: {COLLECTION_NAME}")
+                    break
+                except Exception as create_error:
+                    logger.warning(f"Attempt {attempt + 1}/{max_retries} to create collection failed: {create_error}")
+                    if attempt == max_retries - 1:
+                        # Try to reinitialize the client as a last resort
+                        logger.info("Reinitializing ChromaDB client as final attempt...")
+                        upload_client = create_chroma_client()
+                        collection = upload_client.create_collection(
+                            name=COLLECTION_NAME,
+                            metadata={"hnsw:space": "cosine"}
+                        )
+                        logger.info(f"Successfully created collection after client reinit: {COLLECTION_NAME}")
+                        break
+                    import time
+                    time.sleep(0.5)  # Brief pause before retry
         
         # Process chunks and generate embeddings
         logger.info(f"Chunking text from {file.filename}")
@@ -693,6 +765,17 @@ async def upload_file(file: UploadFile = File(...)):
         
         logger.info(f"Successfully processed {file.filename}")
         
+        # Clean up the upload client
+        try:
+            if hasattr(upload_client, 'close'):
+                upload_client.close()
+            logger.info("Upload client closed successfully")
+        except Exception as cleanup_error:
+            logger.warning(f"Warning while closing upload client: {cleanup_error}")
+        
+        # Update the global client to maintain consistency
+        chroma_client = create_chroma_client()
+        
         return {
             "message": f"File '{file.filename}' processed successfully",
             "details": {
@@ -706,6 +789,12 @@ async def upload_file(file: UploadFile = File(...)):
         
     except Exception as e:
         logger.error(f"Error processing file {file.filename}: {str(e)}")
+        # Clean up the upload client on error too
+        try:
+            if 'upload_client' in locals() and hasattr(upload_client, 'close'):
+                upload_client.close()
+        except Exception as cleanup_error:
+            logger.warning(f"Warning while cleaning up upload client after error: {cleanup_error}")
         raise HTTPException(status_code=500, detail=f"Failed to process {file.filename}: {str(e)}")
 
 @app.post("/refresh")
@@ -728,17 +817,31 @@ async def refresh_database():
         global chroma_client
         logger.info("\n=== Starting Database Refresh ===")
         logger.info("Current Settings:")
-        logger.info(f"- Embedding Model: {configuration.EMBEDDING_MODEL}")
-        logger.info(f"- Chunk Size: {configuration.CHUNK_SIZE}")
-        logger.info(f"- Chunk Overlap: {configuration.CHUNK_OVERLAP}")
+        logger.info(f"- Embedding Model: {runtime_config['embedding_model']}")
+        logger.info(f"- Chunk Size: {runtime_config['chunk_size']}")
+        logger.info(f"- Chunk Overlap: {runtime_config['chunk_overlap']}")
         
-        # Close existing client
+        # Close existing client with proper cleanup
         if chroma_client:
             try:
                 logger.info("Closing existing ChromaDB client...")
-                chroma_client.close()
-            except:
-                pass
+                # Properly close the client if it has a close method
+                if hasattr(chroma_client, 'close'):
+                    chroma_client.close()
+                # Reset the client with allow_reset=True
+                if hasattr(chroma_client, 'reset'):
+                    chroma_client.reset()
+            except Exception as e:
+                logger.warning(f"Warning while closing ChromaDB client: {e}")
+            finally:
+                # Delete the client reference completely
+                chroma_client = None
+        
+        # Import garbage collection to ensure cleanup
+        import gc
+        import time
+        gc.collect()  # Force garbage collection
+        time.sleep(1.0)  # Allow more time for cleanup
         
         # Import and run the update_database main function directly
         logger.info("Starting database update process...")
@@ -746,11 +849,8 @@ async def refresh_database():
         main()
         
         logger.info("Database update completed, reinitializing clients...")
-        # Reinitialize ChromaDB client
-        chroma_client = chromadb.PersistentClient(
-            path=str(CHROMA_DB_DIR),
-            settings=chromadb.config.Settings(allow_reset=True)
-        )
+        # Reinitialize ChromaDB client with standardized settings
+        chroma_client = create_chroma_client()
         
         # Reinitialize other clients to ensure they're using the latest settings
         logger.info("Reinitializing Ollama clients...")
@@ -784,12 +884,26 @@ async def get_file(filename: str):
         HTTPException: If file not found or access error occurs
     """
     try:
-        file_path = os.path.join(KNOWLEDGE_BASE_DIR, filename)
+        # URL decode the filename in case it's encoded
+        from urllib.parse import unquote
+        decoded_filename = unquote(filename)
+        logger.info(f"Original filename: {filename}")
+        logger.info(f"Decoded filename: {decoded_filename}")
+        
+        file_path = os.path.join(KNOWLEDGE_BASE_DIR, decoded_filename)
+        logger.info(f"Looking for file: {file_path}")
+        logger.info(f"Knowledge base directory: {KNOWLEDGE_BASE_DIR}")
+        logger.info(f"Directory exists: {os.path.exists(KNOWLEDGE_BASE_DIR)}")
+        
+        if os.path.exists(KNOWLEDGE_BASE_DIR):
+            files_in_dir = os.listdir(KNOWLEDGE_BASE_DIR)
+            logger.info(f"Files in knowledge base: {files_in_dir}")
+        
         if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="File not found")
+            raise HTTPException(status_code=404, detail=f"File not found: {decoded_filename}. Looking in: {KNOWLEDGE_BASE_DIR}")
         
         # Get the file extension
-        file_extension = os.path.splitext(filename)[1].lower()
+        file_extension = os.path.splitext(decoded_filename)[1].lower()
         
         # Set content type based on file extension
         content_type = None
@@ -809,7 +923,7 @@ async def get_file(filename: str):
         # Use FileResponse with content_disposition_type="inline" to open in browser
         return FileResponse(
             file_path,
-            filename=filename,
+            filename=decoded_filename,
             media_type=content_type,
             content_disposition_type="inline"
         )
@@ -838,33 +952,47 @@ async def clear_database():
         global chroma_client
         logger.info("=== Starting Complete Database Clear Process ===")
         
-        # Close existing client
+        # Close existing client with proper cleanup
         if chroma_client:
             try:
                 logger.info("Closing existing ChromaDB client...")
-                chroma_client.close()
-            except:
-                pass
+                # Properly close the client if it has a close method
+                if hasattr(chroma_client, 'close'):
+                    chroma_client.close()
+                # Reset the client with allow_reset=True
+                if hasattr(chroma_client, 'reset'):
+                    chroma_client.reset()
+            except Exception as e:
+                logger.warning(f"Warning while closing ChromaDB client: {e}")
+            finally:
+                # Delete the client reference completely
+                chroma_client = None
+        
+        # Import garbage collection to ensure cleanup
+        import gc
+        import time
+        gc.collect()  # Force garbage collection
+        time.sleep(2.0)  # Allow more time for cleanup - increased from 1.0 to 2.0
         
         # Delete all collections
         try:
-            temp_client = chromadb.PersistentClient(
-                path=str(CHROMA_DB_DIR),
-                settings=chromadb.config.Settings(allow_reset=True)
-            )
+            temp_client = create_chroma_client()
             
             # Get all collections and delete them
-            collection_names = temp_client.list_collections()
-            logger.info(f"Found {len(collection_names)} collections to delete")
+            collections = temp_client.list_collections()
+            logger.info(f"Found {len(collections)} collections to delete")
             
-            for collection_name in collection_names:
+            for collection in collections:
                 try:
+                    collection_name = collection.name if hasattr(collection, 'name') else str(collection)
                     temp_client.delete_collection(name=collection_name)
                     logger.info(f"Successfully deleted collection: {collection_name}")
                 except Exception as e:
-                    logger.warning(f"Error deleting collection {collection_name}: {str(e)}")
+                    logger.warning(f"Error deleting collection {collection}: {str(e)}")
             
-            temp_client.close()
+            # Properly close the temporary client
+            if hasattr(temp_client, 'close'):
+                temp_client.close()
         except Exception as e:
             logger.warning(f"Error during collection cleanup: {str(e)}")
         
@@ -880,32 +1008,33 @@ async def clear_database():
         except Exception as e:
             logger.warning(f"Warning when clearing source documents: {str(e)}")
         
-        # Clean up ChromaDB data directories and SQLite file
+        # Clean up ChromaDB data directories (but NOT the SQLite file)
         try:
             logger.info("Cleaning up ChromaDB data directories...")
             import shutil
             
-            # Remove UUID directories
+            # Remove UUID directories only - let ChromaDB manage its own SQLite file
             for item in os.listdir(CHROMA_DB_DIR):
                 item_path = os.path.join(CHROMA_DB_DIR, item)
                 if os.path.isdir(item_path) and len(item) == 36:  # UUID directories
                     shutil.rmtree(item_path)
                     logger.info(f"Removed UUID directory: {item}")
             
-            # Remove SQLite database file
-            sqlite_path = os.path.join(CHROMA_DB_DIR, "chroma.sqlite3")
-            if os.path.exists(sqlite_path):
-                os.remove(sqlite_path)
-                logger.info("Removed chroma.sqlite3 file")
+            # DO NOT delete the SQLite file - this causes readonly database errors
+            # ChromaDB will handle its own database file management
+            logger.info("Skipping SQLite file deletion to prevent readonly database errors")
                 
         except Exception as e:
             logger.warning(f"Warning when cleaning ChromaDB directories: {str(e)}")
         
-        # Reinitialize ChromaDB client
-        chroma_client = chromadb.PersistentClient(
-            path=str(CHROMA_DB_DIR),
-            settings=chromadb.config.Settings(allow_reset=True)
-        )
+        # Additional cleanup before reinitialization
+        gc.collect()  # Another garbage collection
+        time.sleep(1.0)  # Additional delay
+        
+        # Reinitialize ChromaDB client with standardized settings
+        logger.info("Creating fresh ChromaDB client...")
+        chroma_client = create_chroma_client()
+        logger.info("ChromaDB client reinitialized successfully")
         
         # Reinitialize other clients
         logger.info("Reinitializing Ollama clients...")

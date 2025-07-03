@@ -67,14 +67,26 @@ def check_prerequisites():
     except FileNotFoundError:
         required_tools.append("Node.js")
     
-    # Check npm directly from PATH
+    # Check npm (platform-specific)
     npm_found = False
-    for path_dir in os.environ['PATH'].split(os.pathsep):
-        npm_cmd_path = Path(path_dir) / "npm.cmd"
-        if npm_cmd_path.exists():
-            print(f"OK: npm: {npm_cmd_path}")
-            npm_found = True
-            break
+    if platform.system().lower() == "windows":
+        # Windows: Check for npm.cmd in PATH
+        for path_dir in os.environ['PATH'].split(os.pathsep):
+            npm_cmd_path = Path(path_dir) / "npm.cmd"
+            if npm_cmd_path.exists():
+                print(f"OK: npm: {npm_cmd_path}")
+                npm_found = True
+                break
+    else:
+        # macOS/Linux: Check npm command directly
+        try:
+            result = subprocess.run(["npm", "--version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"OK: npm: {result.stdout.strip()}")
+                npm_found = True
+        except FileNotFoundError:
+            pass
+    
     if not npm_found:
         required_tools.append("npm")
     

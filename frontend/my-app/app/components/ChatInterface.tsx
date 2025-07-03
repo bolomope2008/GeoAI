@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ChatMessage } from "./ChatMessage"
 import { Send, Settings, HelpCircle, Square } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { api, getBaseUrl } from '@/lib/api'
@@ -307,6 +307,9 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
             <DialogContent>
               <DialogHeader className="text-center">
                 <DialogTitle className="text-xl font-semibold">Configuration</DialogTitle>
+                <DialogDescription>
+                  Configure GeoAI settings including Ollama connection, models, and document processing parameters
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 {Object.entries(config).map(([key, value]) => (
@@ -408,6 +411,9 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
             <DialogContent className="sm:max-w-[850px] sm:max-h-[80vh]">
               <DialogHeader>
                 <DialogTitle>Help & Documentation</DialogTitle>
+                <DialogDescription>
+                  Learn how to use GeoAI effectively with comprehensive documentation and examples
+                </DialogDescription>
               </DialogHeader>
               <ScrollArea className="mt-4 h-[600px] w-full rounded-md border p-4">
                 <div className="space-y-6">

@@ -3,7 +3,7 @@ import { Upload, Search, File, RefreshCw, Trash2, X, CheckCircle, AlertCircle } 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { api } from '@/lib/api'
 import { useToast } from "@/components/ui/use-toast"
@@ -316,6 +316,9 @@ export function Sidebar({ setMessages }: SidebarProps) {
               <DialogContent className="max-w-2xl w-full">
                 <DialogHeader>
                   <DialogTitle>Upload Files</DialogTitle>
+                  <DialogDescription>
+                    Select and upload files to the knowledge base. Supported formats: PDF, DOCX, XLSX, CSV, TXT
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="grid w-full max-w-full items-center gap-1.5">

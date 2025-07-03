@@ -41,6 +41,27 @@ from langchain_ollama import OllamaEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import chromadb
 from configuration import *
+from settings_manager import SettingsManager
+
+def create_chroma_client_for_update(chroma_db_dir):
+    """
+    Create a ChromaDB client with standardized settings for update operations.
+    
+    Args:
+        chroma_db_dir: Path to the ChromaDB directory
+        
+    Returns:
+        chromadb.PersistentClient: Configured ChromaDB client
+    """
+    import chromadb.config
+    return chromadb.PersistentClient(
+        path=str(chroma_db_dir),
+        settings=chromadb.config.Settings(
+            allow_reset=True,
+            anonymized_telemetry=False,
+            is_persistent=True
+        )
+    )
 
 def read_pdf(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
     """Extract text and page numbers from PDF files using pdfplumber.
@@ -207,7 +228,7 @@ def process_document(file_path: str) -> Tuple[str, Dict[str, Any]]:
         logger.error(f"Error processing {file_path}: {str(e)}")
         return "", {}
 
-def chunk_text(text: str, metadata: Dict[str, Any]) -> List[tuple[str, Dict[str, Any]]]:
+def chunk_text(text: str, metadata: Dict[str, Any], chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHUNK_OVERLAP) -> List[tuple[str, Dict[str, Any]]]:
     """Split text into chunks with metadata.
     
     Uses LangChain's RecursiveCharacterTextSplitter to:
@@ -218,6 +239,8 @@ def chunk_text(text: str, metadata: Dict[str, Any]) -> List[tuple[str, Dict[str,
     Args:
         text: Text content to split
         metadata: Document metadata to attach to chunks
+        chunk_size: Maximum size of each chunk
+        chunk_overlap: Number of characters to overlap between chunks
         
     Returns:
         List of tuples containing:
@@ -225,8 +248,8 @@ def chunk_text(text: str, metadata: Dict[str, Any]) -> List[tuple[str, Dict[str,
         - Chunk metadata
     """
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
         length_function=len,
     )
     
@@ -268,15 +291,26 @@ def main():
     """Main function to update the vector database."""
     logger.info("\n=== Starting Database Update Process ===")
     
-    # Initialize ChromaDB
+    # Load settings from settings manager
+    settings_manager = SettingsManager()
+    settings = settings_manager.get_all_settings()
+    
+    # Use settings for configuration values
+    chroma_db_dir = CHROMA_DB_DIR  # This comes from environment variable
+    ollama_base_url = settings.get('ollama_base_url', OLLAMA_BASE_URL)
+    embedding_model = settings.get('embedding_model', EMBEDDING_MODEL)
+    chunk_size = settings.get('chunk_size', CHUNK_SIZE)
+    chunk_overlap = settings.get('chunk_overlap', CHUNK_OVERLAP)
+    
+    # Initialize ChromaDB with standardized settings
     logger.info("Initializing ChromaDB...")
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
+    chroma_client = create_chroma_client_for_update(chroma_db_dir)
     
     # Initialize Ollama embeddings
-    logger.info(f"Initializing Ollama embeddings with model: {EMBEDDING_MODEL}")
+    logger.info(f"Initializing Ollama embeddings with model: {embedding_model}")
     embeddings = OllamaEmbeddings(
-        base_url=OLLAMA_BASE_URL,
-        model=EMBEDDING_MODEL
+        base_url=ollama_base_url,
+        model=embedding_model
     )
     
     # Get or create collection
@@ -333,7 +367,7 @@ def main():
             
             if text and metadata:
                 logger.info(f"Chunking text from {file_name}...")
-                chunks = chunk_text(text, metadata)
+                chunks = chunk_text(text, metadata, chunk_size, chunk_overlap)
                 for chunk, chunk_metadata in chunks:
                     documents.append(chunk)
                     metadatas.append(chunk_metadata)
@@ -358,6 +392,16 @@ def main():
     else:
         logger.info("\n=== No documents found in the knowledge base directory ===")
         logger.info("Database is now empty and ready for new documents")
+    
+    # Properly close the ChromaDB client
+    try:
+        if hasattr(chroma_client, 'close'):
+            chroma_client.close()
+        logger.info("ChromaDB client closed successfully")
+    except Exception as e:
+        logger.warning(f"Warning while closing ChromaDB client: {e}")
+    
+    logger.info("=== Database Update Process Completed ===\n")
 
 if __name__ == "__main__":
     main() 
