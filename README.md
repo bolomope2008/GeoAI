@@ -37,7 +37,7 @@ Transform any document into an interactive AI assistant. Upload your files and s
 ## 📥 **Download & Install**
 
 ### macOS
-- **Apple Silicon (M1/M2/M3)**: [Download ARM64 DMG](https://github.com/bolomope2008/GeoAI/releases/latest)
+- **Apple Silicon**: [Download ARM64 DMG](https://github.com/bolomope2008/GeoAI/releases/latest)
 - **Intel Macs**: [Download Intel DMG](https://github.com/bolomope2008/GeoAI/releases/latest)
 
 ### Windows  
@@ -48,7 +48,7 @@ Transform any document into an interactive AI assistant. Upload your files and s
 2. Install the application (drag to Applications on macOS, run installer on Windows)
 3. Install [Ollama](https://ollama.ai) for AI functionality
 4. Launch GeoAI Desktop and start uploading your documents!
-![Application](Screenshot%202025-07-03%20at%2021.53.24.png)
+![Application](<Screenshot 2025-07-03 at 21.53.24.png>)
 ## 🚀 **How It Works**
 
 1. **📂 Upload Documents** - Drag and drop your files into the app
