@@ -1,0 +1,8 @@
+{
+  "ollama_base_url": "http://localhost:11434",
+  "embedding_model": "nomic-embed-text",
+  "llm_model": "phi4:14b-fp16",
+  "chunk_size": 1500,
+  "chunk_overlap": 150,
+  "top_k_chunks": 10
+}

@@ -9,6 +9,7 @@ import sys
 import subprocess
 import shutil
 from pathlib import Path
+import datetime
 
 def create_standalone_bundle():
     print("Creating standalone Python bundle for GeoAI backend...")
@@ -44,7 +45,17 @@ def create_standalone_bundle():
     # Install requirements
     print("Installing requirements (this may take a few minutes)...")
     requirements_file = backend_dir / "requirements.txt"
-    subprocess.run([str(pip_path), "install", "-r", str(requirements_file)], check=True)
+    # Add --verbose to pip install command
+    subprocess.run([str(pip_path), "install", "--verbose", "-r", str(requirements_file)], check=True)
+    
+    # Verify uvicorn installation
+    print("Verifying uvicorn installation...")
+    try:
+        subprocess.run([str(python_path), "-c", "import uvicorn"], check=True)
+        print("uvicorn successfully verified.")
+    except subprocess.CalledProcessError:
+        print("Error: uvicorn not found in the virtual environment after installation.")
+        sys.exit(1)
     
     # Copy Python files
     print("Copying Python source files...")
@@ -78,7 +89,7 @@ subprocess.run([python_exe, os.path.join(bundle_dir, "start.py")] + sys.argv[1:]
     
     # Create info file
     info_content = f"""GeoAI Backend Bundle
-Created: {subprocess.check_output(['date']).decode().strip()}
+Created: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 Python Version: {sys.version}
 Platform: {sys.platform}
 
@@ -86,7 +97,7 @@ This is a self-contained Python environment with all dependencies for GeoAI.
 """
     (bundle_dir / "INFO.txt").write_text(info_content)
     
-    print(f"\n✅ Bundle created successfully at: {bundle_dir}")
+    print(f"\nBundle created successfully at: {bundle_dir}")
     print(f"   Total size: {sum(f.stat().st_size for f in bundle_dir.rglob('*') if f.is_file()) / 1024 / 1024:.1f} MB")
     
     return bundle_dir
